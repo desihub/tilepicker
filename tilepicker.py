@@ -29,7 +29,7 @@ from astroplan import Observer
 import argparse
 from bokeh.embed import file_html
 from bokeh.resources import CDN
-
+from astropy.coordinates import get_moon
 
 #########################################################
 ## HTML header
@@ -131,8 +131,7 @@ def get_kp_twilights(tt, dd):  # example: '2020-01-01 12:00:00'
 
 #########################################################
 def moonLoc(tt, dd, loc, mooninfo_obj):
-    from astropy.coordinates import get_moon
-
+    
     ds = str(dd[0]) + '-' + str(dd[1]) + '-' + str(dd[2])
     ts = str(tt[0]) + ':' + str(tt[1]) + ':' + str(tt[2])
     t = Time(ds + ' ' + ts)
@@ -638,9 +637,9 @@ def bokehTile(tileFile, jsonFile, TT=[0, 0, 0], DD=[2019, 10, 1], dynamic=False,
 
                 source_sky1.change.emit();
                 source_sky2.change.emit();
-                source_moon_RADEC.change.emit();
-                source_moon_RADEC_.change.emit();
-                source_jup_RADEC.change.emit();
+                //source_moon_RADEC.change.emit();
+                //source_moon_RADEC_.change.emit();
+                //source_jup_RADEC.change.emit();
                 sourceTXTmoon.change.emit();
                 sourceTXTjup.change.emit();
 

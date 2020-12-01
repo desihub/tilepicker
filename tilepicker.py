@@ -24,12 +24,13 @@ from astropy.time import Time
 from astropy.coordinates import SkyCoord, EarthLocation, AltAz,solar_system_ephemeris,get_body,get_body_barycentric
 from datetime import datetime
 from astropy.time import Time, TimezoneInfo
-import pylunar
-from astroplan import Observer
 import argparse
 from bokeh.embed import file_html
 from bokeh.resources import CDN
 from astropy.coordinates import get_moon
+
+#import pylunar
+#from astroplan import Observer
 
 #########################################################
 ## HTML header

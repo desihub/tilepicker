@@ -747,18 +747,18 @@ if __name__ == "__main__":
     p = ArgumentParser(description='DESI Tile Picker Visualization Tool',
                        formatter_class=ArgumentDefaultsHelpFormatter)
 
-    p.add_argument('-i', '--input', type=str, required=True,
-                   help='input tiles file (FITS)')
-    p.add_argument('-j', '--json',  type=str, required=False,
+    p.add_argument('input', nargs='+',
+                   help='fiberassign FITS file(s)')
+    p.add_argument('-j', '--json', dest='json',
                    help='qa json file (optional)')
-    p.add_argument('-o', '--output',type=str, required=False,
+    p.add_argument('-o', '--output', dest='output',
                    help='output html file (optional)')
-    p.add_argument('-t', '--title', type=str, required=False,
+    p.add_argument('-t', '--title', dest='pagetitle',
                    default='DESI Tile Picker',
                    help='HTML title (optional)')
-    p.add_argument('-p', '--ptitle',type=str, required=False,
+    p.add_argument('-p', '--ptitle', dest='plottitle',
                    help='plot title (optional)')
-    p.add_argument('-x', '--xfile', type=str, required=False,
+    p.add_argument('-x', '--xfile', dest='textfile',
                    help='Text file to be printed on the right side of plot')
 
     args = p.parse_args()
@@ -773,7 +773,7 @@ if __name__ == "__main__":
         exit(1)
 
     p = bokehTile(tileFile = args.input, jsonFile = args.json, TT=[0, 0, 0],
-                  DD=[2019, 10, 1], dynamic=True, plotTitle=args.ptitle)
+                  DD=[2019, 10, 1], dynamic=True, plotTitle=args.plottitle)
 
     script, div = components(p)
     script = '\n'.join(['' + line for line in script.split('\n')])
@@ -784,7 +784,7 @@ if __name__ == "__main__":
         htmlName = args.output
     print('The output HTML file is: ', htmlName)
 
-    head = html_header(args.title)
+    head = html_header(args.pagetitle)
     tail = html_footer()
  
     with open(htmlName, "w") as text_file:
@@ -796,8 +796,8 @@ if __name__ == "__main__":
         text_file.write(div)
         text_file.write('</td>')
 
-        if args.xfile is not None:
-            textFile = args.xfile
+        if args.textfile is not None:
+            textFile = args.textfile
             if os.path.exists(textFile):
                 f = open(textFile, 'r')
                 txt = f.read()

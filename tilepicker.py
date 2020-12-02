@@ -29,8 +29,118 @@ from bokeh.embed import file_html
 from bokeh.resources import CDN
 from astropy.coordinates import get_moon
 
-#import pylunar
-#from astroplan import Observer
+import pylunar
+from astroplan import Observer
+
+
+import ephem
+from datetime import datetime, timezone, timedelta
+
+class Observatory:
+    def __init__(self, name='KPNO-Mayall', lon='-111:36:00', lat='31:57:48', elev=2120., tzname='MST', tzoffset=-7):
+        """Initialize observatory data with KPNO-4m values as the default.
+
+        Parameters
+        ----------
+        name : str
+            Observatory name, e.g., 'KPNO', 'Kitt Peak', etc.
+        lon : float
+            Observatory longitude, in degrees.
+        lat : float
+            Observatory latitude, in degrees.
+        elev : float
+            Observatory elevation above sea level, in meters.
+        tzname : str
+            Name of observatory time zone.
+        tzoffset : int
+            Time offset from UTC, in hours.
+        """
+
+        self.name = name
+        self.obs = ephem.Observer()
+
+        # Set location.
+        self.obs.lon = lon
+        self.obs.lat = lat
+        self.obs.elevation = elev
+
+        # Local time zone.
+        self.tzone = timezone(name='MST', offset=timedelta(hours=-7))
+
+        # Set horizon for astro twilight.
+        self.obs.horizon = -18.
+
+    def _to_local_datetime(self, date):
+        """Convert a datetime object to local date and time for this
+        observatory.
+
+        Parameters
+        ----------
+        date : str or datetime
+            Date + time, in format YYYY/MM/DD HH:MM:SS if str.
+
+        Returns
+        -------
+        datestr : str
+            Date in format YYYY/MM/DD HH:MM:SS in current time zone.
+        """
+        if type(date) == datetime:
+            date_str = date.astimezone(self.tzone).strftime('%Y/%m/%d %H:%M:%S')
+        else:
+            date_str = date
+        return date_str
+
+    def get_moon(self, date):
+        """Get topocentric moon location and phase.
+
+        Parameters
+        ----------
+        date : str or datetime
+            Date + time, in format YYYY/MM/DD HH:MM:SS if str.
+
+        Returns
+        -------
+        ra : float
+            Topocentric RA of Moon for this observatory.
+        dec : float
+            Topocentric Dec of Moon for this observatory.
+        phase : float
+            Illuminated fraction of the Moon, between 0 and 1.
+        """
+        self.obs.date = self._to_local_datetime(date)
+        moon = ephem.Moon(self.obs)
+        return np.degrees([moon.ra, moon.dec]).tolist() + [moon.phase]
+
+    def get_jupiter(self, date):
+        """Get Jupiter RA, Dec.
+
+        Parameters
+        ----------
+        date : str or datetime
+            Date + time, in format YYYY/MM/DD HH:MM:SS if str.
+
+        Returns
+        -------
+        ra : float
+            Topocentric RA of Moon for this observatory.
+        dec : float
+            Topocentric Dec of Moon for this observatory.
+        phase : float
+            Illuminated fraction of the Moon, between 0 and 1.
+        """
+        self.obs.date = self._to_local_datetime(date)
+        jup = ephem.Jupiter(self.obs)
+        return np.degrees([jup.ra, jup.dec]).tolist()
+
+    def __str__(self):
+        """String representation of the observatory.
+        """
+        return '\n'.join([self.name,
+                          'lon:  {}'.format(self.obs.lon),
+                          'lat:  {}'.format(self.obs.lat),
+                          'elev: {}'.format(self.obs.elevation),
+                          'TZ:   {}'.format(self.tzone)])
+
 
 #########################################################
 ## HTML header
@@ -227,8 +337,8 @@ def skyCircle(tt, dd, airmass_lim):
 #########################################################
 def bokehTile(tileFile, jsonFile, TT=[0, 0, 0], DD=[2019, 10, 1], dynamic=False, plotTitle=''):
     citls, h = fitsio.read(tileFile, header=True)
-    w = (np.where(citls['IN_DESI'] == 1)[0])
-    inci = citls[w]
+#    w = (np.where(citls['IN_DESI'] == 1)[0])
+#    inci = citls[w]
     
     if jsonFile is not None:
         with open(jsonFile, "r") as read_file:

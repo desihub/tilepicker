@@ -24,7 +24,6 @@ from astropy.time import Time
 from astropy.coordinates import SkyCoord, EarthLocation, AltAz,solar_system_ephemeris,get_body,get_body_barycentric
 from datetime import datetime
 from astropy.time import Time, TimezoneInfo
-import argparse
 from bokeh.embed import file_html
 from bokeh.resources import CDN
 from astropy.coordinates import get_moon
@@ -32,6 +31,7 @@ from astropy.coordinates import get_moon
 import pylunar
 from astroplan import Observer
 
+from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 
 import ephem
 from datetime import datetime, timezone, timedelta
@@ -183,48 +183,6 @@ def html_footer():
     </html>
     """
     return tail
-
-#########################################################
-def arg_parser():
-    parser = argparse.ArgumentParser(usage="""
-
- - A visulaization tool for planning DESI observations
- 
-
- - How to run: 
- 
-     1$ prog -i [tileFile] -j [jsonFile] -o [HTML name] -t [HTML title] -p [plot title]
-     
-     or
-
-
- - jsonFile and HTMLname are optional. 
-     If HTMLname is not provided, this program tries to open up the output on the default browser.
-     If jsonFile is not provided, all plotted tiles would have the same color.
-
-
- - Example(s): 
-    $ python prog -i tileFile.fits -j qa.json -o output.html
-    
-        
-    $ python prog -h 
-      To see help and all available options.
- 
-
-""")
-    
-  
-    parser.add_argument("-i", "--input", type=str, required=True,  help="input tiles file (FITS)")
-    parser.add_argument("-j", "--json",  type=str, required=False, help="qa json file (optional)")
-    parser.add_argument("-o", "--output",type=str, required=False, help="output html file (optional)")
-    parser.add_argument("-t", "--title", type=str, required=False, help="HTML title (optional)")
-    parser.add_argument("-p", "--ptitle",type=str, required=False, help="plot title (optional)")
-    parser.add_argument("-x", "--xfile", type=str, required=False, help="Text file to be printed on the right side of plot (optional)")
-    
-    
-    args = parser.parse_args()
-    
-    return args
 
 #########################################################
 def get_kp_twilights(tt, dd):  # example: '2020-01-01 12:00:00'
@@ -785,47 +743,35 @@ def bokehTile(tileFile, jsonFile, TT=[0, 0, 0], DD=[2019, 10, 1], dynamic=False,
 #########################################################
 
 if __name__ == "__main__":
-    
-    
-    if (len(sys.argv) < 2): 
-        print("\nNot enough input arguments ...")
-        print >> sys.stderr, "Use \"python "+sys.argv[0]+" -h\" for help ... \n"
-        exit(1)
 
-    args =  arg_parser()
-    
+    p = ArgumentParser(description='DESI Tile Picker Visualization Tool',
+                       formatter_class=ArgumentDefaultsHelpFormatter)
+
+    p.add_argument('-i', '--input', type=str, required=True,
+                   help='input tiles file (FITS)')
+    p.add_argument('-j', '--json',  type=str, required=False,
+                   help='qa json file (optional)')
+    p.add_argument('-o', '--output',type=str, required=False,
+                   help='output html file (optional)')
+    p.add_argument('-t', '--title', type=str, required=False,
+                   default='DESI Tile Picker',
+                   help='HTML title (optional)')
+    p.add_argument('-p', '--ptitle',type=str, required=False,
+                   help='plot title (optional)')
+    p.add_argument('-x', '--xfile', type=str, required=False,
+                   help='Text file to be printed on the right side of plot')
+
+    args = p.parse_args()
+
     inputFile = args.input
-    
+
     if inputFile.split('.')[-1]!='fits' or inputFile is None:
         print('Error: '+'Check out the input fits file, it should end with the suffix "fits".\n')
         exit(1)
     if not os.path.exists(inputFile):
         print('Error: '+inputFile+' does NOT exist. Please use the correct file name.\n')
         exit(1)
-    
-    
-    outputDefault = inputFile.split('fits')[0][0:-1]+'.html'
-    
-    if args.title is None:
-        args.title = 'DESI Tile Picker'
 
-
-        
-    print("\n------------------------------------")
-    print("Input Arguments (provided by User)")
-    print("--------------------------------------")
-    print("Input file:", args.input)
-    print("qa json file:", args.json)
-    print("Plot title:", args.ptitle)
-    print("Text file:", args.xfile)
-    print("optput html file:", args.output)
-    print("html title:", args.title)
-    print("------------------------------------")
-    print("You can use \"python "+sys.argv[0]+" -h\"")
-    print("to see how you can set these values.")
-    print("------------------------------------") 
-    
-    
     p = bokehTile(tileFile = args.input, jsonFile = args.json, TT=[0, 0, 0],
                   DD=[2019, 10, 1], dynamic=True, plotTitle=args.ptitle)
 
@@ -833,14 +779,14 @@ if __name__ == "__main__":
     script = '\n'.join(['' + line for line in script.split('\n')])
 
     if args.output is None:
-        htmlName = outputDefault
+        htmlName = inputFile.split('fits')[0][0:-1]+'.html'
     else:
         htmlName = args.output
-    print("The output HTML file is: ", htmlName)
+    print('The output HTML file is: ', htmlName)
 
     head = html_header(args.title)
     tail = html_footer()
-    
+ 
     with open(htmlName, "w") as text_file:
         text_file.write(head)
         text_file.write('<table><tr>')
@@ -849,7 +795,7 @@ if __name__ == "__main__":
         text_file.write(script)
         text_file.write(div)
         text_file.write('</td>')
-        
+
         if args.xfile is not None:
             textFile = args.xfile
             if os.path.exists(textFile):
@@ -859,10 +805,7 @@ if __name__ == "__main__":
             else:
                 print('Warning: '+textFile+' does NOT exist. Continuing without this file ...')
                 print('         '+'You can try again using the correct text file.\n')
-        
+
         text_file.write('</tr></table>')
-        
+
         text_file.write(tail)
-
-
-        

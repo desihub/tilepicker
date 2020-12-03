@@ -967,7 +967,7 @@ def bokeh_tiles(fiberassign_files, TT=[0,0,0], DD=[2020,12,1], dynamic=False, pl
 
 #        layout = column(p, date_slider, time_slider, tiletable)
         layout = column(p, tiletable)
-        show(p)
+        show(layout)
         return layout
 
     return p
@@ -998,37 +998,37 @@ if __name__ == "__main__":
     # Spin through fiberassign input files (>= 1 file needed as input).
     p = bokeh_tiles(args.input, TT=[0,0,0], DD=[2020,12,1], dynamic=True, plot_title=args.plot_title)
 
-    script, div = components(p)
-    script = '\n'.join(['' + line for line in script.split('\n')])
-
-    if args.output is None:
-        html_name = 'tilepicker.html'
-    else:
-        html_name = args.output
-    print('The output HTML file is {}'.format(html_name))
-
-    head = html_header(args.page_title)
-    tail = html_footer()
-
-    with open(html_name, "w") as text_file:
-        text_file.write(head)
-        text_file.write('<table><tr>')
-        
-        text_file.write('<td valign="top" width="850">')
-        text_file.write(script)
-        text_file.write(div)
-        text_file.write('</td>')
-
-        if args.textfile is not None:
-            textFile = args.textfile
-            if os.path.exists(textFile):
-                f = open(textFile, 'r')
-                txt = f.read()
-                text_file.write('<td valign="top" width="400"><p>'+txt+'</p></td>')
-            else:
-                print('Warning: '+textFile+' does NOT exist. Continuing without this file ...')
-                print('         '+'You can try again using the correct text file.\n')
-
-        text_file.write('</tr></table>')
-
-        text_file.write(tail)
+#    script, div = components(p)
+#    script = '\n'.join(['' + line for line in script.split('\n')])
+#
+#    if args.output is None:
+#        html_name = 'tilepicker.html'
+#    else:
+#        html_name = args.output
+#    print('The output HTML file is {}'.format(html_name))
+#
+#    head = html_header(args.page_title)
+#    tail = html_footer()
+#
+#    with open(html_name, "w") as text_file:
+#        text_file.write(head)
+#        text_file.write('<table><tr>')
+#        
+#        text_file.write('<td valign="top" width="850">')
+#        text_file.write(script)
+#        text_file.write(div)
+#        text_file.write('</td>')
+#
+#        if args.textfile is not None:
+#            textFile = args.textfile
+#            if os.path.exists(textFile):
+#                f = open(textFile, 'r')
+#                txt = f.read()
+#                text_file.write('<td valign="top" width="400"><p>'+txt+'</p></td>')
+#            else:
+#                print('Warning: '+textFile+' does NOT exist. Continuing without this file ...')
+#                print('         '+'You can try again using the correct text file.\n')
+#
+#        text_file.write('</tr></table>')
+#
+#        text_file.write(tail)

@@ -1032,6 +1032,7 @@ def bokeh_tiles(fiberassign_files, TT=[0,0,0], DD=[2020,12,1], dynamic=False, pl
     print(obs_time)
     print(m_ra, m_dec)
 
+    moon_RADEC_ = ColumnDataSource({"moon_ra":[m_ra-360], "moon_dec":[m_dec],"phase_frac":[frac_phase]})
     moon_RADEC = ColumnDataSource({"moon_ra":[m_ra], "moon_dec":[m_dec],"phase_frac":[frac_phase]})
 
     # Draw moon with excursion circle.
@@ -1050,6 +1051,152 @@ def bokeh_tiles(fiberassign_files, TT=[0,0,0], DD=[2020,12,1], dynamic=False, pl
         text_alpha=0.3, text_font_size='10pt')
     p.add_glyph(txt_moon, glyph)
 
+    # Custom callbacks for date/time sliders.
+    callback = CustomJS(args=dict(source_sky1=circ1, source_sky2=circ2, 
+#                                  source_moon=moonSource,
+                                  source_moon_RADEC=moon_RADEC, 
+                                  source_moon_RADEC_=moon_RADEC_,
+#                                  source_jup=jupSource, source_jup_RADEC=jup_RADEC,
+                                  sourceTXT = txt_phase,
+                                  sourceTXTmoon = txt_moon,
+#                                  sourceTXTjup = TXTsrc_jup
+                                 ), 
+                        code="""
+                // First set times as if they were UTC
+                var t = new Date(time_slider.value);
+                var d = new Date(date_slider.value);
+                var data1 = source_sky1.data;
+                var ra_1 = data1['RA'];
+                var ra0_1 = data1['RA0'];
+                
+                var data2 = source_sky2.data;
+                var ra_2 = data2['RA'];
+                var ra0_2 = data2['RA0'];
+                
+//                var data_moon = source_moon.data;
+//                var ras_moon = data_moon['moon_RAS'];
+//                var decs_moon = data_moon['moon_DECS'];
+//                var phase_frac = data_moon['Phase_frac'];
+                
+                var moonRADEC = source_moon_RADEC.data;
+                var moon_ra = moonRADEC['moon_ra'];
+                var moon_dec = moonRADEC['moon_dec'];
+     
+                var moonRADEC_ = source_moon_RADEC_.data;
+                var moon_ra_ = moonRADEC_['moon_ra'];
+                var moon_dec_ = moonRADEC_['moon_dec'];
+                
+//                var data_jup = source_jup.data;
+//                var ras_jup = data_jup['jup_RAS'];
+//                var decs_jup = data_jup['jup_DECS'];
+                
+//                var jupRADEC = source_jup_RADEC.data;
+//                var jup_ra = jupRADEC['jup_ra'];
+//                var jup_dec = jupRADEC['jup_dec'];
+
+                var Hour  = t.getUTCHours();
+                var Day   = d.getDate();
+                var Month = d.getMonth();
+                
+                var Year = new Array(31,28,31,30,31,30,31,31,30,31,30,31);
+                var all_FULdays = 0;
+                for (var i = 0; i < Month; i++)
+                    all_FULdays=all_FULdays+Year[i];
+                all_FULdays = all_FULdays + (Day-1);
+                
+                if (Hour<12) all_FULdays=all_FULdays+1;
+                
+                var all_minutes = all_FULdays*24+Hour;
+                
+                if (all_minutes<8800) {
+                    moon_ra[0] = ras_moon[all_minutes];
+                    moon_dec[0] = decs_moon[all_minutes];   
+                    moon_ra_[0] = ras_moon[all_minutes]-360.;
+                    moon_dec_[0] = decs_moon[all_minutes];   
+                }
+
+//                var jupTXTdata = sourceTXTjup.data;
+//                var x_jup = jupTXTdata['x'];
+//                var y_jup = jupTXTdata['y'];
+//                var text_jup = jupTXTdata['text'];  
+                
+//                if (all_minutes<8800) {
+//                    jup_ra[0] = ras_jup[all_minutes];
+//                    jup_dec[0] = decs_jup[all_minutes];   
+//                    x_jup[0] = jup_ra[0]+5;
+//                    y_jup[0] = jup_dec[0]-8;                     
+//                }
+
+                if (t.getUTCHours() < 12) {
+                    d.setTime(date_slider.value + 24*3600*1000);
+                } else {
+                    d.setTime(date_slider.value);
+                }
+                d.setUTCHours(t.getUTCHours());
+                d.setUTCMinutes(t.getUTCMinutes());
+                d.setUTCSeconds(0);        
+                
+                // Correct to KPNO local time
+                // d object still thinks in UTC, which is 7 hours ahead of KPNO
+                d.setTime(d.getTime() + 7*3600*1000);
+                // noon UT on 2000-01-01
+                var reftime = new Date();
+                reftime.setUTCFullYear(2000);
+                reftime.setUTCMonth(0);   // Months are 0-11 (!)
+                reftime.setUTCDate(1);    // Days are 1-31 (!)
+                reftime.setUTCHours(12);
+                reftime.setUTCMinutes(0);
+                reftime.setUTCSeconds(0);
+                
+                // time difference in days (starting from milliseconds)
+                var dt = (d.getTime() - reftime.getTime()) / (24*3600*1000);
+
+                // Convert to LST
+                var mayall_longitude_degrees = -(111 + 35/60. + 59.6/3600);
+                var LST_hours = ((18.697374558 + 24.06570982441908 * dt) + mayall_longitude_degrees/15) % 24;
+                var LST_degrees = LST_hours * 15;
+
+                for (var i = 0; i < ra_1.length; i++) {
+                    ra_1[i] = (ra0_1[i] + LST_degrees) % 360;
+                }
+
+                for (var i = 0; i < ra_2.length; i++) {
+                    ra_2[i] = (ra0_2[i] + LST_degrees) % 360;
+                }                
+
+                //// Here we gtake care of the moon phasde text
+                var TXTdata = sourceTXT.data;
+                var x = TXTdata['x'];
+                var y = TXTdata['y'];
+                var text = TXTdata['text'];
+                
+                var moonTXTdata = sourceTXTmoon.data;
+                var x_moon = moonTXTdata['x'];
+                var y_moon = moonTXTdata['y'];
+                var text_moon = moonTXTdata['text'];   
+
+                // x[0] = 1;
+                // y[0] = 40;
+                if (all_minutes<8800) {
+                    text[0] = 'Moon Phase: ' + phase_frac[all_minutes]+'%';
+                    x_moon[0] = moon_ra[0]+10;
+                    y_moon[0] = moon_dec[0]-10;
+                }
+
+                sourceTXT.change.emit();
+                /////////////////////////////// Moon phase code ends.
+
+                source_sky1.change.emit();
+                source_sky2.change.emit();
+                //source_moon_RADEC.change.emit();
+                //source_moon_RADEC_.change.emit();
+                //source_jup_RADEC.change.emit();
+                sourceTXTmoon.change.emit();
+//                sourceTXTjup.change.emit();
+
+                //alert(d);
+    """)
+
     # Set up date and time slider.
     if dynamic:
         time_slider = DateSlider(start=datetime(2019,9,1,16,0,0),
@@ -1065,14 +1212,14 @@ def bokeh_tiles(fiberassign_files, TT=[0,0,0], DD=[2020,12,1], dynamic=False, pl
                                  title='Date of sunset(4pm-8am)', format='%B:%d',
                                  width=800)
 
-#        callback.args['time_slider'] = time_slider
-#        callback.args['date_slider'] = date_slider
-#
-#        date_slider.js_on_change('value', callback)
-#        time_slider.js_on_change('value', callback)
+        callback.args['time_slider'] = time_slider
+        callback.args['date_slider'] = date_slider
 
-#        layout = column(p, date_slider, time_slider, tiletable)
-        layout = column(p, tiletable)
+        date_slider.js_on_change('value', callback)
+        time_slider.js_on_change('value', callback)
+
+        layout = column(p, date_slider, time_slider, tiletable)
+#        layout = column(p, tiletable)
         show(layout)
         return layout
 

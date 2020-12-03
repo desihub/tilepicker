@@ -7,7 +7,6 @@ import pylab as py
 
 from astropy import units as u
 from astropy.time import Time
-#from astropy.table import Table, Column
 from astropy.coordinates import SkyCoord, AltAz, ICRS, EarthLocation
 
 import datetime
@@ -20,6 +19,7 @@ from bokeh.io import output_notebook
 from bokeh.models.widgets import RadioButtonGroup
 from bokeh.layouts import column
 from bokeh.models import CustomJS
+from bokeh.models.glyphs import Text
 from bokeh.transform import linear_cmap
 from bokeh.models.widgets import tables as bktables
 from bokeh.models import CustomJS, ColumnDataSource, DateSlider, DateRangeSlider
@@ -67,6 +67,12 @@ class Observatory:
         self.obs = EarthLocation(lon=lon, lat=lat, height=elev)
         self.tzone = timezone(name='MST', offset=timedelta(hours=tzoffset.to('hour').value))
 
+        # Create a PyEphem observatory object for tracking the Moon.
+        self._ephem_obs = ephem.Observer()
+        self._ephem_obs.lon = lon.to('degree').value
+        self._ephem_obs.lat = lat.to('degree').value
+        self._ephem_obs.elevation = elev.to('m').value
+
     def to_local_datetime(self, date):
         """Convert a datetime object to local date and time for this
         observatory.
@@ -87,47 +93,26 @@ class Observatory:
             date_str = date
         return date_str
 
-#    def get_moon(self, date):
-#        """Get topocentric moon location and phase.
-#
-#        Parameters
-#        ----------
-#        date : str or datetime
-#            Date + time, in format YYYY/MM/DD HH:MM:SS if str.
-#
-#        Returns
-#        -------
-#        ra : float
-#            Topocentric RA of Moon for this observatory.
-#        dec : float
-#            Topocentric Dec of Moon for this observatory.
-#        phase : float
-#            Illuminated fraction of the Moon, between 0 and 1.
-#        """
-#        self.obs.date = self.to_local_datetime(date)
-#        moon = ephem.Moon(self.obs)
-#        return np.degrees([moon.ra, moon.dec]).tolist() + [moon.phase]
-#
-#    def get_jupiter(self, date):
-#        """Get Jupiter RA, Dec.
-#
-#        Parameters
-#        ----------
-#        date : str or datetime
-#            Date + time, in format YYYY/MM/DD HH:MM:SS if str.
-#
-#        Returns
-#        -------
-#        ra : float
-#            Topocentric RA of Moon for this observatory.
-#        dec : float
-#            Topocentric Dec of Moon for this observatory.
-#        phase : float
-#            Illuminated fraction of the Moon, between 0 and 1.
-#        """
-#        self.obs.date = self.to_local_datetime(date)
-#        jup = ephem.Jupiter(self.obs)
-#        return np.degrees([jup.ra, jup.dec]).tolist()
+    def get_moon(self, obstime):
+        """Get topocentric moon location and phase.
+
+        Parameters
+        ----------
+        time : astropy.Time
+            Date + time.
+
+        Returns
+        -------
+        ra : float
+            Topocentric RA of Moon for this observatory.
+        dec : float
+            Topocentric Dec of Moon for this observatory.
+        phase : float
+            Illuminated fraction of the Moon, between 0 and 1.
+        """
+        self._ephem_obs.date = obstime.to_datetime().astimezone(self.tzone)
+        moon = ephem.Moon(self._ephem_obs)
+        return np.degrees([moon.ra, moon.dec]).tolist() + [moon.moon_phase]
 
     def airmass_limit_range(self, airmass, obstime):
         """Return observatory 'horizon' for a given airmass at a given time.
@@ -618,7 +603,6 @@ def bokehTile(tileFile, jsonFile, TT=[0, 0, 0], DD=[2019, 10, 1], dynamic=False,
     render_jup = p.circle('jup_ra', 'jup_dec', source=jup_RADEC, size=5, color='blue')
     render_jup = p.circle('jup_ra', 'jup_dec', source=jup_RADEC, size=4, color='gold')
 
-    from bokeh.models.glyphs import Text
     TXTsrc = ColumnDataSource(dict(x=[350], y=[85], text=['Moon Phase: ' + "%.0f" % (frac_phase * 100) + "%"]))
     glyph = Text(x="x", y="y", text="text", angle=0, text_color="black")
     p.add_glyph(TXTsrc, glyph)
@@ -1023,8 +1007,28 @@ def bokeh_tiles(fiberassign_files, TT=[0,0,0], DD=[2020,12,1], dynamic=False, pl
         circ1 = ColumnDataSource({'RA': ra, 'DEC': dec})
         p.circle('RA', 'DEC', source=circ1, size=1.5, color='black')
 
-    # Moon and Jupiter positions.
-    # ...
+    # Moon position.
+    m_ra, m_dec, frac_phase = observer.get_moon(Time(obs_time))
+    print(obs_time)
+    print(m_ra, m_dec)
+
+    moon_RADEC = ColumnDataSource({"moon_ra":[m_ra], "moon_dec":[m_dec],"phase_frac":[frac_phase]})
+
+    # Draw moon with excursion circle.
+    render_moon = p.circle('moon_ra', 'moon_dec', source=moon_RADEC, size=170, color='cyan', alpha=0.2)
+    render_moon = p.circle('moon_ra', 'moon_dec', source=moon_RADEC, size=4, color='blue')
+
+    # Draw text with moon phase and label the moon.
+    txt_phase = ColumnDataSource(dict(x=[350], y=[85],
+        text=['Moon Phase: ' + '%.0f' % (frac_phase * 100) + '%']))
+    glyph = Text(x='x', y='y', text='text', angle=0, text_color='black')
+    p.add_glyph(txt_phase, glyph)
+
+    txt_moon = ColumnDataSource(dict(x=[m_ra+10], y=[m_dec-10],
+        text=['Moon']))
+    glyph = Text(x='x', y='y', text='text', angle=0, text_color='blue',
+        text_alpha=0.3, text_font_size='10pt')
+    p.add_glyph(txt_moon, glyph)
 
     # Set up date and time slider.
     if dynamic:
@@ -1078,7 +1082,7 @@ if __name__ == "__main__":
     args = p.parse_args()
 
     # Spin through fiberassign input files (>= 1 file needed as input).
-    p = bokeh_tiles(args.input, TT=[0,0,0], DD=[2020,12,1], dynamic=True, plot_title=args.plot_title)
+    p = bokeh_tiles(args.input, TT=[12,0,0], DD=[2020,12,3], dynamic=True, plot_title=args.plot_title)
 
 #    script, div = components(p)
 #    script = '\n'.join(['' + line for line in script.split('\n')])

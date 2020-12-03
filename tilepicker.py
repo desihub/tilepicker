@@ -220,18 +220,29 @@ def jupLoc(tt, dd, loc):
     return jup_loc.ra, jup_loc.dec
 
 
-#### Functions
-#########################################################
 def add_plane(p, color='black', plane=None, projection=None):
-    from kapteyn import wcs
+    """Add a plane (ecliptic, galactic, etc., to the plot.
 
+    Parameters
+    ----------
+    p : bokeh.plotting.figure
+        Figure object (passed by reference).
+    color : str
+        Color of the plane line.
+    plane : str
+        Name of plane coordinate system (astropy convention required).
+    projection : str
+        Name of target coordinate system (astropy convention required).
+    """
     if plane == None or projection == None:
         return
-    alpha = np.arange(0., 360, 2)
-    delta = alpha * 0.
 
-    tran = wcs.Transformation(plane + " ", projection)
-    alpha, delta = tran((alpha, delta))
+    lon = np.arange(0., 360, 2)
+    lat = np.zeros_like(lon)
+
+    c1 = SkyCoord(lon, lat, unit='degree', frame=plane.lower())
+    c2 = c1.transform_to(projection.lower())
+    alpha, delta = c2.ra.value, c2.dec.value
 
     # for i in range(len(alpha)):
     #  if alpha[i] >180:
@@ -820,6 +831,9 @@ def bokeh_tiles(fiberassign_files, TT=[0,0,0], DD=[2020,12,1], dynamic=False, pl
     p.title.text_color = 'black'
     p.grid.grid_line_color = 'gainsboro'
 
+    # Add ecliptic plane + hour grid.
+    add_plane(p, color='red', plane='GeocentricTrueEcliptic', projection='ICRS')
+
     # Add tile table.
     tiledata = dict(
         RA = tile_ra,
@@ -951,7 +965,8 @@ def bokeh_tiles(fiberassign_files, TT=[0,0,0], DD=[2020,12,1], dynamic=False, pl
 #        date_slider.js_on_change('value', callback)
 #        time_slider.js_on_change('value', callback)
 
-        layout = column(p, date_slider, time_slider, tiletable)
+#        layout = column(p, date_slider, time_slider, tiletable)
+        layout = column(p, tiletable)
         show(p)
         return layout
 
@@ -987,7 +1002,7 @@ if __name__ == "__main__":
     script = '\n'.join(['' + line for line in script.split('\n')])
 
     if args.output is None:
-        html_name = 'test.html'
+        html_name = 'tilepicker.html'
     else:
         html_name = args.output
     print('The output HTML file is {}'.format(html_name))

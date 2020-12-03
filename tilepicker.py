@@ -6,7 +6,9 @@ import numpy as np
 import pylab as py
 from astropy.table import Table, Column
 import datetime
-from bokeh.plotting import *
+
+from bokeh.plotting import figure, show
+
 from bokeh.embed import components
 from bokeh.models import ColumnDataSource, LabelSet, HoverTool, Range1d, Label, TapTool, OpenURL, CustomJS, CrosshairTool, LinearAxis
 from bokeh.io import output_notebook
@@ -17,6 +19,7 @@ from bokeh.transform import linear_cmap
 from bokeh.models.widgets import tables as bktables
 from bokeh.models import CustomJS, ColumnDataSource, DateSlider, DateRangeSlider
 from datetime import datetime as dt
+from datetime import datetime
 from astropy.visualization import astropy_mpl_style
 plt.style.use(astropy_mpl_style)
 import astropy.units as u
@@ -145,44 +148,35 @@ class Observatory:
 #########################################################
 ## HTML header
 def html_header(title):
-
-    head = """
-    <!DOCTYPE html>
-    <html lang="en">
-      <head>
-          <meta charset="utf-8">
-          <title>"""+title+"""</title>
-
-            <link rel="stylesheet" href="https://cdn.pydata.org/bokeh/release/bokeh-0.13.0.min.css" type="text/css" />
-            <link rel="stylesheet" href="https://cdn.pydata.org/bokeh/release/bokeh-widgets-0.13.0.min.css" type="text/css" />
-            <link rel="stylesheet" href="https://cdn.pydata.org/bokeh/release/bokeh-tables-0.13.0.min.css" type="text/css" />
-
-            <script type="text/javascript" src="https://cdn.pydata.org/bokeh/release/bokeh-0.13.0.min.js"></script>
-            <script type="text/javascript" src="https://cdn.pydata.org/bokeh/release/bokeh-widgets-0.13.0.min.js"></script>
-            <script type="text/javascript" src="https://cdn.pydata.org/bokeh/release/bokeh-tables-0.13.0.min.js"></script>
-            <script type="text/javascript">
-                Bokeh.set_log_level("info");
-            </script>
-
-      </head>
-
-      <body>
-
-    """
+    head = [
+        '<!DOCTYPE html>',
+        '<html lang="en">',
+        '  <head>',
+        '    <meta charset="utf-8">',
+        '    <title>{}</title>'.format(title),
+        '      <link rel="stylesheet" href="https://cdn.pydata.org/bokeh/release/bokeh-0.13.0.min.css" type="text/css" />',
+        '      <link rel="stylesheet" href="https://cdn.pydata.org/bokeh/release/bokeh-widgets-0.13.0.min.css" type="text/css" />',
+        '      <link rel="stylesheet" href="https://cdn.pydata.org/bokeh/release/bokeh-tables-0.13.0.min.css" type="text/css" />',
+        '      <script type="text/javascript" src="https://cdn.pydata.org/bokeh/release/bokeh-0.13.0.min.js"></script>',
+        '      <script type="text/javascript" src="https://cdn.pydata.org/bokeh/release/bokeh-widgets-0.13.0.min.js"></script>',
+        '      <script type="text/javascript" src="https://cdn.pydata.org/bokeh/release/bokeh-tables-0.13.0.min.js"></script>',
+        '      <script type="text/javascript">',
+        '          Bokeh.set_log_level("info");',
+        '      </script>',
+        '  </head>',
+        '  <body>']
     
-    return head
+    return '\n'.join(head)
 
 #########################################################
 def html_footer():
     
     ## HTML footer
-    tail = """
+    tail = [
+        '  </body>',
+        '</html>']
 
-
-        </body>
-    </html>
-    """
-    return tail
+    return '\n'.join(tail)
 
 #########################################################
 def get_kp_twilights(tt, dd):  # example: '2020-01-01 12:00:00'
@@ -739,11 +733,233 @@ def bokehTile(tileFile, jsonFile, TT=[0, 0, 0], DD=[2019, 10, 1], dynamic=False,
 
     return p
 
+def get_fiberassign_info(fafile):
+    """Extract data from a fiberassign FITS file.
 
-#########################################################
+    Parameters
+    ----------
+    fafile : str
+        Fiberassign FITS file name.
+
+    Returns
+    -------
+    tile_id : int
+        Unique tile ID number.
+    tile_ra : float
+        Central tile RA, in degrees.
+    tile_dec : float
+        Central tile Dec, in degrees.
+    fa_surv : str
+        Survey type: CMX, SV0, etc.
+    fa_vers : str
+        Fiberassign version number.
+    fa_date : str
+        Fiberassign date.
+    """
+    head = fitsio.read_header(fafile, ext='FIBERASSIGN')
+    tile_id  = head['TILEID']
+    tile_ra  = head['TILERA']
+    tile_dec = head['TILEDEC']
+    fa_vers  = head['FA_VER']
+    fa_surv  = head['FA_SURV']
+    fa_date  = head['FA_DATE'] if 'FA_DATE' in head else ''
+
+    return tile_id, tile_ra, tile_dec, fa_surv, fa_vers, fa_date
+
+def bokeh_tiles(fiberassign_files, TT=[0,0,0], DD=[2020,12,1], dynamic=False, plot_title=''):
+    """Create a bokeh plot of a list of DESI tiles.
+
+    Parameters
+    ----------
+    fiberassign_files : list
+        A list of fiberassign FITS files.
+    TT : list of int
+        Time [hr, min, sec]
+    DD : list of int
+        Date [yyyy, mm, dy]
+    dynamic : bool
+        Turn on plot dynamic elements.
+    plot_title : str
+        Title for celestial coordinate plot.
+
+    Returns
+    -------
+    p : bokeh.plotting.figure
+        Figure object for rendering in HTML + JS.
+    """
+    tile_id, tile_ra, tile_dec, fsurv, fvers, fdate = [],[],[],[],[],[]
+
+    for fafile in fiberassign_files:
+        _id, _ra, _dec, _surv, _vers, _date = get_fiberassign_info(fafile)
+        tile_id.append(_id)
+        tile_ra.append(_ra)
+        tile_dec.append(_dec)
+        fsurv.append(_surv.upper())
+        fvers.append(_vers)
+        fdate.append(_date)
+
+    # Color map for tiles.
+    dye = np.zeros_like(tile_id, dtype=int)
+    palette = ['green', 'red', 'white']
+    mapper = linear_cmap(field_name='DYE', palette=palette, low=0, high=2)
+
+    # Set up plot toolbar.
+    tools = ['pan', 'tap', 'wheel_zoom', 'box_zoom', 'reset', 'save', 'box_select']
+    obs_time = datetime(*DD, *TT)
+
+    if plot_title == '' or plot_title is None:
+        ptitle = ''
+    else:
+        ptitle = 'Program: {}'.format(plot_title)
+
+    # Set up the main figure.
+    p = figure(tools=tools, toolbar_location='right',
+               plot_width=800, plot_height=450,
+               title=ptitle, active_drag='box_select')
+    p.title.text_font_size = '16pt'
+    p.title.text_color = 'black'
+    p.grid.grid_line_color = 'gainsboro'
+
+    # Add tile table.
+    tiledata = dict(
+        RA = tile_ra,
+        DEC = tile_dec,
+        TILEID = tile_id,
+        DYE = dye,
+        program = fsurv,
+        selected = np.ones_like(tile_ra, dtype=bool))
+
+    tiles = ColumnDataSource(data=tiledata)
+
+    colformat = bktables.NumberFormatter(format='0,0.00')
+    columns = [
+        bktables.TableColumn(field='TILEID', title='TILEID', width=80),
+        bktables.TableColumn(field='RA', title='RA', formatter=colformat),
+        bktables.TableColumn(field='DEC', title='DEC', formatter=colformat),
+        bktables.TableColumn(field='selected', title='selected')
+    ]
+
+    tiletable = bktables.DataTable(columns=columns, source=tiles, width=800)
+
+    tiles.selected.js_on_change('indices', CustomJS(args=dict(s1=tiles), code="""
+        var inds = cb_obj.indices;
+        var d1 = s1.data;
+        for (var i=0; i<d1['selected'].length; i++) {
+            d1['selected'][i] = false;
+        }
+        for (var i = 0; i < inds.length; i++) {
+            d1['selected'][inds[i]] = true;
+        }
+        s1.change.emit();
+    """)
+    )
+
+    # Render the tiles in the plot.
+    render = p.circle('RA', 'DEC', source=tiles, size=9,
+                      line_color='chocolate', color=mapper, alpha=0.4,
+                      hover_color='orange', hover_alpha=1, hover_line_color='red',
+                      # set visual properties for selected glyphs
+                      selection_fill_color='orange',
+                      selection_line_color='white',
+                      # set visual properties for non-selected glyphs
+                      nonselection_fill_alpha=0.4,
+                      nonselection_fill_color=mapper)
+
+    p.xaxis.axis_label = 'RA [deg]'
+    p.yaxis.axis_label = 'Dec. [deg]'
+
+    p.xaxis.axis_label_text_font_size = "14pt"
+    p.yaxis.axis_label_text_font_size = "14pt"
+
+    p.grid.grid_line_color = "gainsboro"
+
+    p.yaxis.major_label_text_font_size = "12pt"
+    p.xaxis.major_label_text_font_size = "12pt"
+
+    p.x_range = Range1d(360, 0)
+    p.y_range = Range1d(-40, 95)
+
+    p.toolbar.logo = None
+    p.toolbar_location = None
+
+    # JS code to open custom HTML pages when users click on a tile.
+    # ...
+
+    # HTML for hover window with tile information.
+    ttip = """
+        <div>
+        <div>
+            <span style="font-size: 14px; color: blue;">Tile ID:</span>
+            <span style="font-size: 14px; font-weight: bold;">@TILEID{int}</span>
+        </div>
+        <div>
+            <span style="font-size: 14px; color: blue;">RA:</span>
+            <span style="font-size: 14px; font-weight: bold;">@RA</span>
+        </div>
+        <div>
+            <span style="font-size: 14px; color: blue;">Dec:</span>
+            <span style="font-size: 14px; font-weight: bold;">@DEC</span>
+        </div>
+    </div>
+    """
+
+    hover = HoverTool(tooltips=ttip, renderers=[render])
+    hover.point_policy = 'snap_to_data'
+    hover.line_policy = 'nearest'
+    p.add_tools(hover)
+
+    # Add a crosshairs to the plot.
+    cross = CrosshairTool()
+    cross.line_alpha = 0.3
+    cross.line_color = 'gray'
+    p.add_tools(cross)
+
+    # Set the mirrored y axis name and range and add to the plot.
+    p.extra_y_ranges = {'foo' : p.y_range}
+    p.extra_x_ranges = {'joo' : p.x_range}
+
+    p.add_layout(LinearAxis(y_range_name='foo'), 'right')
+    p.add_layout(LinearAxis(x_range_name='joo'), 'above')
+
+    p.xaxis.major_label_text_font_size = '12pt'
+    p.yaxis.major_label_text_font_size = '12pt'
+
+    # Add dynamically moving observatory FOV.
+    # ...
+
+    # Moon and Jupiter positions.
+    # ...
+
+    # Set up date and time slider.
+    if dynamic:
+        time_slider = DateSlider(start=datetime(2019,9,1,16,0,0),
+                                end=datetime(2019,9,2,8,0,0),
+                                value=datetime(2019,9,1,16,0,0), step=1,
+                                title='KPNO local time(hh:mm)', format='%H:%M',
+                                width=800)
+
+        ## DATE
+        date_slider = DateSlider(start=datetime(2019, 9, 1, 16, 0, 0),
+                                 end=datetime(2020, 8, 31, 8, 0, 0),
+                                 value=datetime(2019, 10, 1, 16, 0, 0), step=1,
+                                 title='Date of sunset(4pm-8am)', format='%B:%d',
+                                 width=800)
+
+#        callback.args['time_slider'] = time_slider
+#        callback.args['date_slider'] = date_slider
+#
+#        date_slider.js_on_change('value', callback)
+#        time_slider.js_on_change('value', callback)
+
+        layout = column(p, date_slider, time_slider, tiletable)
+        show(p)
+        return layout
+
+    return p
+
 
 if __name__ == "__main__":
-
+    # Set up command line interface.
     p = ArgumentParser(description='DESI Tile Picker Visualization Tool',
                        formatter_class=ArgumentDefaultsHelpFormatter)
 
@@ -753,41 +969,32 @@ if __name__ == "__main__":
                    help='qa json file (optional)')
     p.add_argument('-o', '--output', dest='output',
                    help='output html file (optional)')
-    p.add_argument('-t', '--title', dest='pagetitle',
+    p.add_argument('-t', '--title', dest='page_title',
                    default='DESI Tile Picker',
                    help='HTML title (optional)')
-    p.add_argument('-p', '--ptitle', dest='plottitle',
+    p.add_argument('-p', '--ptitle', dest='plot_title',
                    help='plot title (optional)')
     p.add_argument('-x', '--xfile', dest='textfile',
                    help='Text file to be printed on the right side of plot')
 
     args = p.parse_args()
 
-    inputFile = args.input
-
-    if inputFile.split('.')[-1]!='fits' or inputFile is None:
-        print('Error: '+'Check out the input fits file, it should end with the suffix "fits".\n')
-        exit(1)
-    if not os.path.exists(inputFile):
-        print('Error: '+inputFile+' does NOT exist. Please use the correct file name.\n')
-        exit(1)
-
-    p = bokehTile(tileFile = args.input, jsonFile = args.json, TT=[0, 0, 0],
-                  DD=[2019, 10, 1], dynamic=True, plotTitle=args.plottitle)
+    # Spin through fiberassign input files (>= 1 file needed as input).
+    p = bokeh_tiles(args.input, TT=[0,0,0], DD=[2020,12,1], dynamic=False, plot_title=args.plot_title)
 
     script, div = components(p)
     script = '\n'.join(['' + line for line in script.split('\n')])
 
     if args.output is None:
-        htmlName = inputFile.split('fits')[0][0:-1]+'.html'
+        html_name = 'test.html'
     else:
-        htmlName = args.output
-    print('The output HTML file is: ', htmlName)
+        html_name = args.output
+    print('The output HTML file is {}'.format(html_name))
 
-    head = html_header(args.pagetitle)
+    head = html_header(args.page_title)
     tail = html_footer()
- 
-    with open(htmlName, "w") as text_file:
+
+    with open(html_name, "w") as text_file:
         text_file.write(head)
         text_file.write('<table><tr>')
         

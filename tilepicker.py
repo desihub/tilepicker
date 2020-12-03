@@ -9,7 +9,6 @@ from astropy import units as u
 from astropy.time import Time
 from astropy.coordinates import SkyCoord, AltAz, ICRS, EarthLocation
 
-import datetime
 
 from bokeh.plotting import figure, show
 
@@ -28,7 +27,7 @@ from datetime import datetime
 from astropy.visualization import astropy_mpl_style
 plt.style.use(astropy_mpl_style)
 from astropy.coordinates import SkyCoord, EarthLocation, AltAz,solar_system_ephemeris,get_body,get_body_barycentric
-from datetime import datetime
+
 from astropy.time import Time, TimezoneInfo
 from bokeh.embed import file_html
 from bokeh.resources import CDN
@@ -40,11 +39,12 @@ from astroplan import Observer
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 
 import ephem
-from datetime import datetime, timezone, timedelta
+from pytz import timezone
+from datetime import datetime
 
 
 class Observatory:
-    def __init__(self, name='KPNO-Mayall', lon=-111.6*u.degree, lat=31.9633*u.degree, elev=2120.*u.meter, tzname='MST', tzoffset=-7*u.hour):
+    def __init__(self, name='KPNO-Mayall', lon=-111.6*u.degree, lat=31.9633*u.degree, elev=2120.*u.meter, tzname='US/Arizona'):
         """Initialize observatory data with KPNO-4m values as the default.
 
         Parameters
@@ -65,13 +65,14 @@ class Observatory:
 
         self.name = name
         self.obs = EarthLocation(lon=lon, lat=lat, height=elev)
-        self.tzone = timezone(name='MST', offset=timedelta(hours=tzoffset.to('hour').value))
+        self.tzone = timezone('US/Arizona')
 
         # Create a PyEphem observatory object for tracking the Moon.
         self._ephem_obs = ephem.Observer()
-        self._ephem_obs.lon = lon.to('degree').value
-        self._ephem_obs.lat = lat.to('degree').value
+        self._ephem_obs.lon = '{}'.format(lon.to('degree').value)
+        self._ephem_obs.lat = '{}'.format(lat.to('degree').value)
         self._ephem_obs.elevation = elev.to('m').value
+        self._ephem_obs.horizon = '-18'
 
     def to_local_datetime(self, date):
         """Convert a datetime object to local date and time for this
@@ -113,6 +114,25 @@ class Observatory:
         self._ephem_obs.date = obstime.to_datetime().astimezone(self.tzone)
         moon = ephem.Moon(self._ephem_obs)
         return np.degrees([moon.ra, moon.dec]).tolist() + [moon.moon_phase]
+
+    def get_twilight(self, obstime):
+        """Compute start and end of astro-twilight.
+
+        Parameters
+        ----------
+        obstime : astropy.Time
+            Observation time.
+
+        Returns
+        -------
+        """
+        self._ephem_obs.date = obstime.to_datetime()
+
+        # Begin and end astronomical twilight.
+        tbeg = self._ephem_obs.previous_rising(ephem.Sun(), use_center=True)
+        tend = self._ephem_obs.next_setting(ephem.Sun(), use_center=True)
+
+        return str(tbeg), str(tend)
 
     def airmass_limit_range(self, airmass, obstime):
         """Return observatory 'horizon' for a given airmass at a given time.

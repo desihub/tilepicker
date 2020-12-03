@@ -4,7 +4,12 @@ import subprocess
 import matplotlib.pyplot as plt
 import numpy as np
 import pylab as py
-from astropy.table import Table, Column
+
+from astropy import units as u
+from astropy.time import Time
+#from astropy.table import Table, Column
+from astropy.coordinates import SkyCoord, AltAz, ICRS, EarthLocation
+
 import datetime
 
 from bokeh.plotting import figure, show
@@ -22,8 +27,6 @@ from datetime import datetime as dt
 from datetime import datetime
 from astropy.visualization import astropy_mpl_style
 plt.style.use(astropy_mpl_style)
-import astropy.units as u
-from astropy.time import Time
 from astropy.coordinates import SkyCoord, EarthLocation, AltAz,solar_system_ephemeris,get_body,get_body_barycentric
 from datetime import datetime
 from astropy.time import Time, TimezoneInfo
@@ -39,8 +42,9 @@ from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 import ephem
 from datetime import datetime, timezone, timedelta
 
+
 class Observatory:
-    def __init__(self, name='KPNO-Mayall', lon='-111:36:00', lat='31:57:48', elev=2120., tzname='MST', tzoffset=-7):
+    def __init__(self, name='KPNO-Mayall', lon=-111.6*u.degree, lat=31.9633*u.degree, elev=2120.*u.meter, tzname='MST', tzoffset=-7*u.hour):
         """Initialize observatory data with KPNO-4m values as the default.
 
         Parameters
@@ -60,20 +64,10 @@ class Observatory:
         """
 
         self.name = name
-        self.obs = ephem.Observer()
+        self.obs = EarthLocation(lon=lon, lat=lat, height=elev)
+        self.tzone = timezone(name='MST', offset=timedelta(hours=tzoffset.to('hour').value))
 
-        # Set location.
-        self.obs.lon = lon
-        self.obs.lat = lat
-        self.obs.elevation = elev
-
-        # Local time zone.
-        self.tzone = timezone(name='MST', offset=timedelta(hours=-7))
-
-        # Set horizon for astro twilight.
-        self.obs.horizon = -18.
-
-    def _to_local_datetime(self, date):
+    def to_local_datetime(self, date):
         """Convert a datetime object to local date and time for this
         observatory.
 
@@ -93,61 +87,98 @@ class Observatory:
             date_str = date
         return date_str
 
-    def get_moon(self, date):
-        """Get topocentric moon location and phase.
+#    def get_moon(self, date):
+#        """Get topocentric moon location and phase.
+#
+#        Parameters
+#        ----------
+#        date : str or datetime
+#            Date + time, in format YYYY/MM/DD HH:MM:SS if str.
+#
+#        Returns
+#        -------
+#        ra : float
+#            Topocentric RA of Moon for this observatory.
+#        dec : float
+#            Topocentric Dec of Moon for this observatory.
+#        phase : float
+#            Illuminated fraction of the Moon, between 0 and 1.
+#        """
+#        self.obs.date = self.to_local_datetime(date)
+#        moon = ephem.Moon(self.obs)
+#        return np.degrees([moon.ra, moon.dec]).tolist() + [moon.phase]
+#
+#    def get_jupiter(self, date):
+#        """Get Jupiter RA, Dec.
+#
+#        Parameters
+#        ----------
+#        date : str or datetime
+#            Date + time, in format YYYY/MM/DD HH:MM:SS if str.
+#
+#        Returns
+#        -------
+#        ra : float
+#            Topocentric RA of Moon for this observatory.
+#        dec : float
+#            Topocentric Dec of Moon for this observatory.
+#        phase : float
+#            Illuminated fraction of the Moon, between 0 and 1.
+#        """
+#        self.obs.date = self.to_local_datetime(date)
+#        jup = ephem.Jupiter(self.obs)
+#        return np.degrees([jup.ra, jup.dec]).tolist()
+
+    def airmass_limit_range(self, airmass, obstime):
+        """Return observatory 'horizon' for a given airmass at a given time.
 
         Parameters
         ----------
-        date : str or datetime
-            Date + time, in format YYYY/MM/DD HH:MM:SS if str.
+        airmass : float
+            Limiting airmass (e.g. 1.5, 2.0, etc.)
+        obstime : astropy.Time
+            Observation time.
 
         Returns
         -------
-        ra : float
-            Topocentric RA of Moon for this observatory.
-        dec : float
-            Topocentric Dec of Moon for this observatory.
-        phase : float
-            Illuminated fraction of the Moon, between 0 and 1.
+        ra : ndarray
+            List of RA values defining the current limiting airmass.
+        dec : ndarray
+            List of Dec values defining the current limiting airmass.
         """
-        self.obs.date = self._to_local_datetime(date)
-        moon = ephem.Moon(self.obs)
-        return np.degrees([moon.ra, moon.dec]).tolist() + [moon.phase]
+        zenith = np.degrees(np.arccos(1./airmass))
+        az = np.arange(0, 360+3, 3)*u.degree
+        alt = np.full(az.shape, 90.-zenith)*u.degree
+        s = AltAz(alt=alt, az=az, obstime=obstime, location=self.obs)
+        c = s.transform_to(ICRS)
 
-    def get_jupiter(self, date):
-        """Get Jupiter RA, Dec.
-
-        Parameters
-        ----------
-        date : str or datetime
-            Date + time, in format YYYY/MM/DD HH:MM:SS if str.
-
-        Returns
-        -------
-        ra : float
-            Topocentric RA of Moon for this observatory.
-        dec : float
-            Topocentric Dec of Moon for this observatory.
-        phase : float
-            Illuminated fraction of the Moon, between 0 and 1.
-        """
-        self.obs.date = self._to_local_datetime(date)
-        jup = ephem.Jupiter(self.obs)
-        return np.degrees([jup.ra, jup.dec]).tolist()
+        return c.ra.to('degree').value, c.dec.to('degree').value
 
     def __str__(self):
         """String representation of the observatory.
         """
         return '\n'.join([self.name,
-                          'lon:  {}'.format(self.obs.lon),
-                          'lat:  {}'.format(self.obs.lat),
-                          'elev: {}'.format(self.obs.elevation),
+                          'lon:  {:.2f}'.format(self.obs.lon),
+                          'lat:  {:.4f}'.format(self.obs.lat),
+                          'elev: {:.2f}'.format(self.obs.height),
                           'TZ:   {}'.format(self.tzone)])
 
+observer = Observatory()
 
-#########################################################
-## HTML header
+
 def html_header(title):
+    """Output tilepicker HTML header.
+
+    Parameters
+    ----------
+    title : str
+        Page title.
+
+    Returns
+    -------
+    head : str
+        HTML topmatter.
+    """
     head = [
         '<!DOCTYPE html>',
         '<html lang="en">',
@@ -168,8 +199,15 @@ def html_header(title):
     
     return '\n'.join(head)
 
-#########################################################
+
 def html_footer():
+    """Output tilepicker HTML closing tags.
+
+    Returns
+    -------
+    tail : str
+        HTML body and page closing tags.
+    """
     
     ## HTML footer
     tail = [
@@ -177,6 +215,7 @@ def html_footer():
         '</html>']
 
     return '\n'.join(tail)
+
 
 #########################################################
 def get_kp_twilights(tt, dd):  # example: '2020-01-01 12:00:00'
@@ -221,7 +260,7 @@ def jupLoc(tt, dd, loc):
 
 
 def add_plane(p, color='black', plane=None, projection=None):
-    """Add a plane (ecliptic, galactic, etc., to the plot.
+    """Add a plane (ecliptic, galactic, etc.), to the plot.
 
     Parameters
     ----------
@@ -253,6 +292,31 @@ def add_plane(p, color='black', plane=None, projection=None):
     p.line(alpha, delta, line_width=2, color=color)
     p.line(alpha + 5, delta + 5, color='black', alpha=0.5)
     p.line(alpha - 5, delta - 5, color='black', alpha=0.5)
+
+
+def calc_airmass_limit(tt, dd, airmass_lim):
+    """Compute a circle around the observatory at some limiting airmass.
+
+    Parameters
+    ----------
+    tt : list of int
+        Time [hr, min, sec].
+    dd : list of int
+        Date [yyyy, mm, dy]
+    airmass_lim : float
+        Limiting airmass for the calculation.
+
+    Returns
+    -------
+    circle : ColumnDataSource
+        Coordinates indicating limiting airmass above the observatory.
+    """
+    ds = '-'.join([str(_x) for _x in dd])
+    ts = ':'.join([str(_x) for _x in tt])
+
+    obs_time = observer.to_local_time(datetime(*dd, *tt))
+    reference = datetime(2000,1,1,12,0,0) # UTC
+
 
 
 #########################################################
@@ -744,6 +808,7 @@ def bokehTile(tileFile, jsonFile, TT=[0, 0, 0], DD=[2019, 10, 1], dynamic=False,
 
     return p
 
+
 def get_fiberassign_info(fafile):
     """Extract data from a fiberassign FITS file.
 
@@ -776,6 +841,7 @@ def get_fiberassign_info(fafile):
     fa_date  = head['FA_DATE'] if 'FA_DATE' in head else ''
 
     return tile_id, tile_ra, tile_dec, fa_surv, fa_vers, fa_date
+
 
 def bokeh_tiles(fiberassign_files, TT=[0,0,0], DD=[2020,12,1], dynamic=False, plot_title=''):
     """Create a bokeh plot of a list of DESI tiles.
@@ -850,6 +916,7 @@ def bokeh_tiles(fiberassign_files, TT=[0,0,0], DD=[2020,12,1], dynamic=False, pl
         bktables.TableColumn(field='TILEID', title='TILEID', width=80),
         bktables.TableColumn(field='RA', title='RA', formatter=colformat),
         bktables.TableColumn(field='DEC', title='DEC', formatter=colformat),
+        bktables.TableColumn(field='program', title='program'),
         bktables.TableColumn(field='selected', title='selected')
     ]
 
@@ -914,6 +981,10 @@ def bokeh_tiles(fiberassign_files, TT=[0,0,0], DD=[2020,12,1], dynamic=False, pl
             <span style="font-size: 14px; color: blue;">Dec:</span>
             <span style="font-size: 14px; font-weight: bold;">@DEC</span>
         </div>
+        <div>
+            <span style="font-size: 14px; color: blue;">Prog:</span>
+            <span style="font-size: 14px; font-weight: bold;">@program</span>
+        </div>
     </div>
     """
 
@@ -939,7 +1010,18 @@ def bokeh_tiles(fiberassign_files, TT=[0,0,0], DD=[2020,12,1], dynamic=False, pl
     p.yaxis.major_label_text_font_size = '12pt'
 
     # Add dynamically moving observatory FOV.
-    # ...
+    if dynamic:
+        ra, dec = observer.airmass_limit_range(1.5, Time(obs_time))
+        circ1 = ColumnDataSource({'RA': ra, 'DEC': dec})
+        p.circle('RA', 'DEC', source=circ1, size=1.5, color='black')
+
+        ra, dec = observer.airmass_limit_range(2.0, Time(obs_time))
+        circ2 = ColumnDataSource({'RA': ra, 'DEC': dec})
+        p.circle('RA', 'DEC', source=circ2, size=0.5, color='black')
+    else:
+        ra, dec = observer.airmass_limit_range(1.5, Time(obs_time))
+        circ1 = ColumnDataSource({'RA': ra, 'DEC': dec})
+        p.circle('RA', 'DEC', source=circ1, size=1.5, color='black')
 
     # Moon and Jupiter positions.
     # ...

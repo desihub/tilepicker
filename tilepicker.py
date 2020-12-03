@@ -973,6 +973,7 @@ if __name__ == "__main__":
                    default='DESI Tile Picker',
                    help='HTML title (optional)')
     p.add_argument('-p', '--ptitle', dest='plot_title',
+                   default=None,
                    help='plot title (optional)')
     p.add_argument('-x', '--xfile', dest='textfile',
                    help='Text file to be printed on the right side of plot')
@@ -980,7 +981,7 @@ if __name__ == "__main__":
     args = p.parse_args()
 
     # Spin through fiberassign input files (>= 1 file needed as input).
-    p = bokeh_tiles(args.input, TT=[0,0,0], DD=[2020,12,1], dynamic=False, plot_title=args.plot_title)
+    p = bokeh_tiles(args.input, TT=[0,0,0], DD=[2020,12,1], dynamic=True, plot_title=args.plot_title)
 
     script, div = components(p)
     script = '\n'.join(['' + line for line in script.split('\n')])

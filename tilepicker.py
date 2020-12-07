@@ -367,7 +367,7 @@ def skyCircle(tt, dd, airmass_lim):
 
 
 #########################################################
-def bokehTile(tileFile, jsonFile, TT=[0, 0, 0], DD=[2019, 10, 1], dynamic=False, plotTitle=''):
+def bokehTile(tileFile, jsonFile, TT=[0, 0, 0], DD=[2020, 12, 31], dynamic=False, plotTitle=''):
     citls, h = fitsio.read(tileFile, header=True)
 #    w = (np.where(citls['IN_DESI'] == 1)[0])
 #    inci = citls[w]
@@ -1199,16 +1199,16 @@ def bokeh_tiles(fiberassign_files, TT=[0,0,0], DD=[2020,12,1], dynamic=False, pl
 
     # Set up date and time slider.
     if dynamic:
-        time_slider = DateSlider(start=datetime(2019,9,1,16,0,0),
-                                end=datetime(2019,9,2,8,0,0),
-                                value=datetime(2019,9,1,16,0,0), step=1,
+        time_slider = DateSlider(start=datetime(2020,12,3,16,0,0),
+                                end=datetime(2020,12,4,8,0,0),
+                                value=datetime(2020,12,3,16,0,0), step=1,
                                 title='KPNO local time(hh:mm)', format='%H:%M',
                                 width=800)
 
         ## DATE
-        date_slider = DateSlider(start=datetime(2019, 9, 1, 16, 0, 0),
-                                 end=datetime(2020, 8, 31, 8, 0, 0),
-                                 value=datetime(2019, 10, 1, 16, 0, 0), step=1,
+        date_slider = DateSlider(start=datetime(2020, 12, 1, 16, 0, 0),
+                                 end=datetime(2021, 8, 31, 8, 0, 0),
+                                 value=datetime(2020, 12, 3, 16, 0, 0), step=1,
                                  title='Date of sunset(4pm-8am)', format='%B:%d',
                                  width=800)
 

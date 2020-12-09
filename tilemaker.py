@@ -25,8 +25,8 @@ if __name__ == '__main__':
                    help='Tycho-2 file.')
     p.add_argument('-d', '--dirname', required=True,
                    help='Fiberassign FITS files folder.')
-    p.add_argument('-o', '--output', default='desi-tile.fits',
-                   help='DESI tile file name.')
+    p.add_argument('-o', '--output', required=True,
+                   help='FITS output with DESI tile info.')
 
     args = p.parse_args()
     output = fitsio.FITS(args.output, 'rw', clobber=True)

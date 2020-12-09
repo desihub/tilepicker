@@ -1199,16 +1199,16 @@ def bokeh_tiles(fiberassign_files, TT=[0,0,0], DD=[2020,12,1], dynamic=False, pl
 
     # Set up date and time slider.
     if dynamic:
-        time_slider = DateSlider(start=datetime(2020,12,3,16,0,0),
-                                end=datetime(2020,12,4,8,0,0),
-                                value=datetime(2020,12,3,16,0,0), step=1,
+        time_slider = DateSlider(start=datetime(2020,12,9,16,0,0),
+                                end=datetime(2020,12,10,8,0,0),
+                                value=datetime(2020,12,9,16,0,0), step=1,
                                 title='KPNO local time(hh:mm)', format='%H:%M',
                                 width=800)
 
         ## DATE
         date_slider = DateSlider(start=datetime(2020, 12, 1, 16, 0, 0),
                                  end=datetime(2021, 8, 31, 8, 0, 0),
-                                 value=datetime(2020, 12, 3, 16, 0, 0), step=1,
+                                 value=datetime(2020, 12, 9, 16, 0, 0), step=1,
                                  title='Date of sunset(4pm-8am)', format='%B:%d',
                                  width=800)
 
@@ -1249,7 +1249,7 @@ if __name__ == "__main__":
     args = p.parse_args()
 
     # Spin through fiberassign input files (>= 1 file needed as input).
-    p = bokeh_tiles(args.input, TT=[12,0,0], DD=[2020,12,3], dynamic=True, plot_title=args.plot_title)
+    p = bokeh_tiles(args.input, TT=[12,0,0], DD=[2020,12,9], dynamic=True, plot_title=args.plot_title)
 
 #    script, div = components(p)
 #    script = '\n'.join(['' + line for line in script.split('\n')])

@@ -39,6 +39,14 @@ def hrToDelta(hr):
     d[d < -12] += 24
     return d
 
+def next_midnight(now=None, tz=None):
+    if now is None:
+        now = datetime.now(tz)
+    midnight = datetime(now.year, now.month, now.day, 0, 0, 0)
+    if now.hour >= 12:
+        midnight += timedelta(days=1)
+    return midnight
+
 if __name__ == '__main__':
     p = ArgumentParser(description='Transit alt/az plotter.')
     p.add_argument('infile', nargs=1,
@@ -47,19 +55,20 @@ if __name__ == '__main__':
                    help='Output filename [PNG format]')
     args = p.parse_args()
 
+    utcoffset = -7*u.hour  # Mountain Standard Time [US/Arizona]
+    tz = timezone(timedelta(hours=-7))
+    midnight = Time(next_midnight(datetime.now(tz))) - utcoffset
+
     g = ephem.Observer()
     g.name='Somewhere'
     g.lat=np.radians(31.9)  # lat/long in decimal degrees
     g.long=np.radians(-111.6)
     m = ephem.Moon()
-    tz = timezone(timedelta(hours=-7))
-    g.date = datetime.now().astimezone(tz)
+    g.date = midnight.datetime
     m.compute(g)
 
     kpno = EarthLocation(lat=31.9*u.deg, lon=-111.6*u.deg, height=2100*u.m)
-    utcoffset = -7*u.hour  # Mountain Standard Time [US/Arizona]
 
-    midnight = Time('{} 00:00:00'.format(date.today())) - utcoffset
     delta_midnight = np.linspace(-7, 7, 250)*u.hour
     times = midnight + delta_midnight
     frame = AltAz(obstime=times, location=kpno)
@@ -82,7 +91,7 @@ if __name__ == '__main__':
     data = ascii.read(args.infile[0], format='csv')
     print(data)
     n = len(data)
-    n = 5
+    n = 6
     col = mpl.cm.magma(np.linspace(0.1,0.75,n))
     lin = ['-', '-.', '--', ':']
 
@@ -106,10 +115,10 @@ if __name__ == '__main__':
                         verticalalignment='center',
                         color=col[i%n])
 
-    ax.legend(loc='upper center', ncol=3,
-              bbox_to_anchor=(0.5, 1.15),
+    ax.legend(loc='upper center', ncol=9,
+              bbox_to_anchor=(0.5, 1.16),
               fancybox=True, shadow=True,
-              fontsize=9)
+              fontsize=8)
 
     # Draw times before twilight ends / after twilight begins.
     t0, t1 = twilight(delta_midnight, sunaltaz)

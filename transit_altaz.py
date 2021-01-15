@@ -82,20 +82,21 @@ if __name__ == '__main__':
     sun = get_sun(times)
     sunaltaz = sun.transform_to(frame)
 
-    fig, ax = plt.subplots(1,1, figsize=(10,7))
+    fig, ax = plt.subplots(1,1, figsize=(10,8))
 
     ax.plot(delta_midnight, moonaltaz.alt, ls='--', lw=4,
             alpha=0.7*m.phase/100 + 0.3,
             label='Moon (phase {:.0f}%)'.format(m.phase))
 
-    data = ascii.read(args.infile[0], format='csv')
+    # data = ascii.read(args.infile[0], format='csv')
+    data = ascii.read(args.infile[0], data_start=9, names=['local', 'lst', 'cond', 'tile', 'ra', 'dec', 'program', 'fac', 'tot', 'split', 'd/g/b'])
     print(data)
     n = len(data)
-    n = 6
+    n = 8 
     col = mpl.cm.magma(np.linspace(0.1,0.75,n))
     lin = ['-', '-.', '--', ':']
 
-    for i, (_tile_id, _ra, _dec) in enumerate(data):
+    for i, (_tile_id, _ra, _dec) in enumerate(data['tile','ra','dec']):
         print('{} {} {} '.format(_tile_id, _ra, _dec))
         tile_radec = SkyCoord(ra=_ra*u.deg, dec=_dec*u.deg, frame='icrs')
 
@@ -115,10 +116,10 @@ if __name__ == '__main__':
                         verticalalignment='center',
                         color=col[i%n])
 
-    ax.legend(loc='upper center', ncol=9,
-              bbox_to_anchor=(0.5, 1.16),
+    ax.legend(loc='upper center', ncol=8,
+              bbox_to_anchor=(0.5, 1.2),
               fancybox=True, shadow=True,
-              fontsize=8)
+              fontsize=9)
 
     # Draw times before twilight ends / after twilight begins.
     t0, t1 = twilight(delta_midnight, sunaltaz)
@@ -174,7 +175,7 @@ if __name__ == '__main__':
     #          xlabel=r'time [US/Arizona - MST]')
 
     #fig.tight_layout()
-    #fig.subplots_adjust(right=0.92)
+    fig.subplots_adjust(top=0.85)
 
     fig.savefig(args.output, dpi=120)
     plt.show()
